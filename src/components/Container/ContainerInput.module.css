@@ -1,0 +1,26 @@
+.container {
+    background-color: white;
+    height: 250px;
+    text-align: center;
+    width: 200px;
+    margin: auto;
+    border-radius: 20px;
+    padding: 20px;
+}
+
+label, input {
+    margin-bottom: 15px;
+}
+
+input[type="submit"] {
+    padding: 10px;
+    background-color: rgb(84, 84, 226);
+    border: none;
+    border-radius: 10px;
+}
+
+input[type="submit"]:hover {
+    background-color: rgb(141, 141, 241);
+    color: white;
+    cursor: pointer;
+}

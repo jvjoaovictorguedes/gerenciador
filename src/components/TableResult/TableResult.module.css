@@ -1,0 +1,23 @@
+styles.displayResult {
+    color: black;
+    display: block;
+    margin: auto;
+    width: 300px;
+    margin-top: 20px;
+}
+  
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: auto;
+}
+  
+th, td {
+    padding: 8px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+  
+th {
+    background-color: #f2f2f2;
+}

@@ -1,0 +1,18 @@
+@keyframes title-text {
+    from {
+      transform: scale(30);
+    }
+    to {
+      transform: scale(1);
+    }
+}
+
+.cabecalho {
+    text-align: center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.cabecalho > h1 {
+  animation: title-text 1.5s;
+}
