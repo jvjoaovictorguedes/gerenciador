@@ -1,0 +1,978 @@
+<title>Gerenciador de Pneus</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: faixa grafite no topo (banda de rodagem) + abas; conteúdo em coluna única de até 1180px, grids que empilham no celular */
+:root {
+  --bg: #ECEEF1;
+  --surface: #FFFFFF;
+  --surface-2: #F5F6F8;
+  --line: #D7DBE1;
+  --ink: #171A1E;
+  --ink-2: #59626E;
+  --bar: #1C2025;
+  --bar-ink: #E9ECEF;
+  --bar-ink-2: #9BA4AF;
+  --accent: #F2B705;
+  --accent-ink: #191714;
+  --accent-text: #8A6300;
+  --good: #1E8556;
+  --good-bg: #E1F2E9;
+  --bad: #C2362C;
+  --bad-bg: #FBE6E3;
+  --warn: #A86A0C;
+  --warn-bg: #FCF0D9;
+  --focus: #2F6FDB;
+  --shadow: 0 1px 2px rgba(20,24,30,.06), 0 4px 14px rgba(20,24,30,.05);
+
+  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --surface: #191C20; --surface-2: #20242A; --line: #2D333B;
+    --ink: #ECEEF1; --ink-2: #99A2AD; --bar: #0B0D0F; --bar-ink: #ECEEF1; --bar-ink-2: #8C95A0;
+    --accent: #F2B705; --accent-ink: #191714; --accent-text: #F2C53D;
+    --good: #43C58C; --good-bg: rgba(67,197,140,.14); --bad: #F2685C; --bad-bg: rgba(242,104,92,.15);
+    --warn: #EBAA3F; --warn-bg: rgba(235,170,63,.15); --focus: #6FA0F5;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --surface: #191C20; --surface-2: #20242A; --line: #2D333B;
+  --ink: #ECEEF1; --ink-2: #99A2AD; --bar: #0B0D0F; --bar-ink: #ECEEF1; --bar-ink-2: #8C95A0;
+  --accent: #F2B705; --accent-ink: #191714; --accent-text: #F2C53D;
+  --good: #43C58C; --good-bg: rgba(67,197,140,.14); --bad: #F2685C; --bad-bg: rgba(242,104,92,.15);
+  --warn: #EBAA3F; --warn-bg: rgba(235,170,63,.15); --focus: #6FA0F5;
+  --shadow: 0 1px 2px rgba(0,0,0,.3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.1rem; }
+.num, td, .kpi-value { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* topo */
+.topbar { background: var(--bar); color: var(--bar-ink); position: relative; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
+  background: repeating-linear-gradient(115deg, var(--accent) 0 14px, transparent 14px 26px); opacity: .9; }
+.topbar .wrap { padding-block: 18px 0; display: flex; flex-direction: column; gap: 14px; }
+.brand-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.logo { width: 40px; height: 40px; flex: none; }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.brand h1 { font-size: 1.7rem; font-weight: 700; line-height: 1; text-transform: uppercase; letter-spacing: .04em; }
+.brand span { color: var(--bar-ink-2); font-size: .85rem; }
+.brand-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sample-pill { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--accent);
+  border: 1px solid currentColor; border-radius: 999px; padding: 3px 9px; }
+.btn-ghost-bar { background: transparent; color: var(--bar-ink); border: 1px solid #3A414A; border-radius: 6px;
+  font: 500 .85rem var(--f-body); padding: 6px 10px; cursor: pointer; }
+.btn-ghost-bar:hover { border-color: var(--bar-ink-2); }
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding-bottom: 6px; }
+.tab { background: none; border: 0; color: var(--bar-ink-2); font: 600 1.05rem var(--f-display); text-transform: uppercase;
+  letter-spacing: .06em; padding: 10px 14px 12px; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab:hover { color: var(--bar-ink); }
+.tab[aria-selected="true"] { color: var(--bar-ink); border-bottom-color: var(--accent); }
+.tab .count { font-family: var(--f-mono); font-size: .72rem; background: var(--bad); color: #fff; border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+
+main.wrap { padding-block: 24px 64px; display: flex; flex-direction: column; gap: 20px; }
+.view { display: flex; flex-direction: column; gap: 20px; }
+.view-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.view-head p { margin: 2px 0 0; color: var(--ink-2); }
+
+/* cartões */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); min-width: 0; }
+.card-pad { padding: 18px; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 16px 18px 0; }
+.card-head small { color: var(--ink-2); }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.kpi-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); font-weight: 600; }
+.kpi-value { font-family: var(--f-display); font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.kpi-sub { font-size: .83rem; color: var(--ink-2); }
+.kpi.is-bad .kpi-value { color: var(--bad); }
+.kpi.is-good .kpi-value { color: var(--good); }
+
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.grid-main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid-2, .grid-main { grid-template-columns: minmax(0, 1fr); } }
+
+/* botões e formulários */
+.btn { font: 600 .9rem var(--f-body); border-radius: 7px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { border-color: var(--ink-2); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.05); border-color: var(--accent); }
+.btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn-sm { padding: 5px 9px; font-size: .8rem; border-radius: 6px; }
+.btn-in { color: var(--good); }
+.btn-out { color: var(--bad); }
+.btn-link { background: none; border: 0; color: var(--ink-2); padding: 4px 6px; cursor: pointer; font: 500 .8rem var(--f-body); border-radius: 5px; }
+.btn-link:hover { color: var(--ink); background: var(--surface-2); }
+.btn-link.danger:hover { color: var(--bad); }
+
+label.field { display: flex; flex-direction: column; gap: 5px; font-size: .8rem; font-weight: 600; color: var(--ink-2); min-width: 0; }
+input, select { font: 400 .95rem var(--f-body); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 7px; padding: 9px 10px; width: 100%; min-width: 0; }
+input:focus, select:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.check { display: flex; gap: 8px; align-items: center; font-size: .88rem; color: var(--ink); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent-text); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.form-grid .span-2 { grid-column: span 2; }
+@media (max-width: 480px) { .form-grid .span-2 { grid-column: 1 / -1; } }
+.form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.form-msg { font-size: .88rem; font-weight: 500; color: var(--bad); min-height: 1.2em; }
+.hint { font-size: .8rem; color: var(--ink-2); font-weight: 400; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; width: 1px; }
+.seg label { padding: 8px 16px; font: 600 .9rem var(--f-body); cursor: pointer; color: var(--ink-2); }
+.seg input:checked + label.in { background: var(--good-bg); color: var(--good); }
+.seg input:checked + label.out { background: var(--bad-bg); color: var(--bad); }
+.seg input:focus-visible + label { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.toolbar input[type="search"] { flex: 1 1 220px; width: auto; }
+.toolbar select { width: auto; flex: 0 0 auto; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 18px 0; }
+.chip-btn { font: 600 .8rem var(--f-mono); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chip-btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.chip-btn em { font-style: normal; opacity: .7; margin-left: 4px; }
+
+/* tabelas */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 760px; }
+th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); font-weight: 600;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.r { text-align: right; }
+.empty { text-align: center; color: var(--ink-2); padding: 28px 12px; }
+tfoot td { font-weight: 600; background: var(--surface-2); border-top: 1px solid var(--line); }
+
+.size { font-family: var(--f-mono); font-weight: 600; font-size: .98rem; white-space: nowrap; letter-spacing: -.01em; }
+.size .r-aro { color: var(--accent-text); }
+.idx { font-family: var(--f-mono); font-size: .75rem; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--ink-2); cursor: help; white-space: nowrap; }
+.brand-cell b { display: block; font-weight: 600; }
+.brand-cell span { color: var(--ink-2); font-size: .85rem; }
+.stock { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+.stock b { font-family: var(--f-display); font-size: 1.25rem; font-weight: 600; min-width: 2ch; text-align: right; }
+.meter { flex: 1; height: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; position: relative; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--good); border-radius: 99px; }
+.meter.warn i { background: var(--warn); }
+.meter.bad i { background: var(--bad); }
+.pill { display: inline-block; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.pill.good { background: var(--good-bg); color: var(--good); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.neutral { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.row-actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: nowrap; }
+.pos { color: var(--good); }
+.neg { color: var(--bad); }
+.muted { color: var(--ink-2); }
+
+/* listas do painel */
+.list { list-style: none; margin: 0; padding: 6px 0; }
+.list li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.list li:last-child { border-bottom: 0; }
+.list .grow { flex: 1; min-width: 0; }
+.list .grow span { display: block; color: var(--ink-2); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .amt { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; font: 700 .95rem var(--f-mono); }
+.dot.in { background: var(--good-bg); color: var(--good); }
+.dot.out { background: var(--bad-bg); color: var(--bad); }
+
+/* gráfico */
+.chart { padding: 8px 12px 14px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .axis text { fill: var(--ink-2); font: 500 11px var(--f-body); }
+.chart .bar-in { fill: var(--good); }
+.chart .bar-out { fill: var(--bad); opacity: .85; }
+.chart .bar-cur { stroke: var(--ink); stroke-width: 1.5; }
+.legend { display: flex; gap: 16px; font-size: .82rem; color: var(--ink-2); padding: 0 18px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.cat-bars { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; }
+.cat-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: .9rem; }
+.cat-row .track { grid-column: 1 / -1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; border: 1px solid var(--line); }
+.cat-row .track i { display: block; height: 100%; background: var(--ink-2); border-radius: 99px; }
+.cat-row:first-child .track i { background: var(--accent); }
+
+.month-nav { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.month-nav button { background: none; border: 0; color: var(--ink); width: 34px; height: 34px; border-radius: 6px; cursor: pointer; font-size: 1.1rem; }
+.month-nav button:hover { background: var(--surface-2); }
+.month-nav strong { font-family: var(--f-display); font-size: 1.15rem; font-weight: 600; min-width: 150px; text-align: center; }
+
+.status-btn { border: 0; cursor: pointer; }
+
+/* modal e toast */
+.overlay { position: fixed; inset: 0; background: rgba(10,12,15,.55); display: grid; place-items: center; z-index: 50;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.modal { width: min(620px, 100%); max-height: 100%; overflow: auto; }
+.modal header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.modal .body { padding: 18px; }
+.modal .x { background: none; border: 0; font-size: 1.4rem; color: var(--ink-2); cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 6px; }
+.size-preview { font-family: var(--f-mono); font-size: 1.3rem; font-weight: 600; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; margin-bottom: 14px; background: var(--surface-2); }
+.size-preview small { font-family: var(--f-body); font-weight: 400; font-size: .8rem; color: var(--ink-2); display: block; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--surface);
+  padding: 10px 16px; border-radius: 8px; font-weight: 500; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: rise .2s ease-out; }
+  @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } }
+}
+</style>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand-row">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="#F2B705" stroke-width="5" stroke-dasharray="4 2.2"></circle>
+        <circle cx="20" cy="20" r="9" fill="none" stroke="#E9ECEF" stroke-width="2.5"></circle>
+        <circle cx="20" cy="20" r="2.5" fill="#E9ECEF"></circle>
+      </svg>
+      <div class="brand">
+        <h1>Gerenciador de Pneus</h1>
+        <span>Estoque por medida e marca · entradas e saídas · despesas</span>
+      </div>
+      <div class="brand-actions">
+        <span class="sample-pill" id="samplePill">Dados de exemplo</span>
+        <button class="btn-ghost-bar" data-act="reset-sample" id="btnResetSample">Restaurar exemplo</button>
+        <button class="btn-ghost-bar" data-act="reset-empty" id="btnResetEmpty">Começar do zero</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button class="tab" role="tab" data-tab="painel" id="tab-painel">Painel</button>
+      <button class="tab" role="tab" data-tab="estoque" id="tab-estoque">Estoque<span class="count" id="lowCount" hidden></span></button>
+      <button class="tab" role="tab" data-tab="movs" id="tab-movs">Entradas e saídas</button>
+      <button class="tab" role="tab" data-tab="fin" id="tab-fin">Financeiro</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- PAINEL -->
+  <section class="view" id="view-painel" role="tabpanel">
+    <div class="view-head">
+      <div><h2>Resumo da loja</h2><p id="painelDate"></p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-in" data-act="go-mov" data-tipo="entrada">+ Registrar entrada</button>
+        <button class="btn btn-out" data-act="go-mov" data-tipo="saida">− Registrar saída</button>
+      </div>
+    </div>
+    <div class="kpis" id="painelKpis"></div>
+    <div class="grid-main">
+      <div class="card">
+        <div class="card-head"><h3>Vendas × despesas</h3><small>últimos 6 meses</small></div>
+        <div class="legend" style="margin-top:8px"><span><i style="background:var(--good)"></i>Vendas (saídas)</span><span><i style="background:var(--bad)"></i>Despesas</span></div>
+        <div class="chart" id="chart"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Repor estoque</h3><small id="reporSub"></small></div>
+        <ul class="list" id="reporList"></ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Últimas movimentações</h3><button class="btn-link" data-act="tab" data-tab="movs">Ver todas →</button></div>
+      <ul class="list" id="recentList"></ul>
+    </div>
+  </section>
+
+  <!-- ESTOQUE -->
+  <section class="view" id="view-estoque" role="tabpanel" hidden>
+    <div class="view-head">
+      <div><h2>Estoque de pneus</h2><p>Medida no padrão largura/perfil R aro, com índice de carga e velocidade.</p></div>
+      <button class="btn btn-primary" data-act="new-tire">+ Novo pneu</button>
+    </div>
+    <div class="card">
+      <div class="chips" id="aroChips" aria-label="Filtrar por aro"></div>
+      <div class="toolbar">
+        <input type="search" id="stockSearch" placeholder="Buscar medida, marca ou modelo (ex.: 205/55, Pirelli)" aria-label="Buscar no estoque">
+        <select id="stockBrand" aria-label="Filtrar por marca"></select>
+        <label class="check"><input type="checkbox" id="stockLow"> Só abaixo do mínimo</label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Medida</th><th>Marca / modelo</th><th>Índice</th><th>Quantidade</th><th>Situação</th>
+            <th class="r">Custo</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ações</th>
+          </tr></thead>
+          <tbody id="stockBody"></tbody>
+          <tfoot id="stockFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOVIMENTAÇÕES -->
+  <section class="view" id="view-movs" role="tabpanel" hidden>
+    <div class="view-head">
+      <div><h2>Entradas e saídas</h2><p>Entradas somam ao estoque; saídas descontam e contam como venda no financeiro.</p></div>
+    </div>
+    <form class="card card-pad" id="movForm" novalidate>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <div class="seg" role="radiogroup" aria-label="Tipo de movimentação">
+          <input type="radio" name="movTipo" id="movTipoIn" value="entrada" checked><label for="movTipoIn" class="in">↓ Entrada</label>
+          <input type="radio" name="movTipo" id="movTipoOut" value="saida"><label for="movTipoOut" class="out">↑ Saída</label>
+        </div>
+        <span class="hint" id="movHint"></span>
+      </div>
+      <div class="form-grid">
+        <label class="field span-2">Pneu
+          <select id="movTire"></select>
+        </label>
+        <label class="field">Quantidade
+          <input type="number" id="movQtd" min="1" step="1" value="4" inputmode="numeric">
+        </label>
+        <label class="field"><span id="movValorLabel">Custo unitário (R$)</span>
+          <input type="number" id="movValor" min="0" step="0.01" inputmode="decimal">
+        </label>
+        <label class="field">Data
+          <input type="date" id="movData">
+        </label>
+        <label class="field span-2"><span id="movObsLabel">Fornecedor / nota fiscal</span>
+          <input type="text" id="movObs" maxlength="80">
+        </label>
+      </div>
+      <div class="form-foot">
+        <label class="check" id="movLancarWrap"><input type="checkbox" id="movLancar" checked> Lançar a compra nas despesas</label>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-left:auto">
+          <span class="form-msg" id="movMsg" role="alert"></span>
+          <strong class="num" id="movTotal"></strong>
+          <button class="btn btn-primary" type="submit" id="movSubmit">Registrar entrada</button>
+        </div>
+      </div>
+    </form>
+    <div class="card">
+      <div class="toolbar">
+        <input type="search" id="movSearch" placeholder="Buscar pneu, cliente, placa ou fornecedor" aria-label="Buscar movimentações">
+        <select id="movFilter" aria-label="Filtrar por tipo">
+          <option value="">Entradas e saídas</option>
+          <option value="entrada">Só entradas</option>
+          <option value="saida">Só saídas</option>
+        </select>
+      </div>
+      <div class="table-wrap" style="max-height:560px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Pneu</th><th class="r">Qtd</th><th class="r">Valor un.</th><th class="r">Total</th><th>Observação</th><th class="r"></th></tr></thead>
+          <tbody id="movBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINANCEIRO -->
+  <section class="view" id="view-fin" role="tabpanel" hidden>
+    <div class="view-head">
+      <div><h2>Controle financeiro</h2><p>Vendas vêm das saídas do estoque. Despesas você lança aqui ou pelas entradas.</p></div>
+      <div class="month-nav">
+        <button data-act="month" data-d="-1" aria-label="Mês anterior" id="btnPrevMonth">‹</button>
+        <strong id="finMonthLabel"></strong>
+        <button data-act="month" data-d="1" aria-label="Próximo mês" id="btnNextMonth">›</button>
+      </div>
+    </div>
+    <div class="kpis" id="finKpis"></div>
+    <div class="grid-main">
+      <div class="card">
+        <div class="card-head"><h3>Despesas do mês</h3><small id="despSub"></small></div>
+        <div class="table-wrap" style="margin-top:12px">
+          <table style="min-width:600px">
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="r">Valor</th><th>Status</th><th class="r"></th></tr></thead>
+            <tbody id="despBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <form class="card card-pad" id="despForm" novalidate>
+          <h3 style="margin-bottom:12px">Nova despesa</h3>
+          <div class="form-grid">
+            <label class="field span-2">Descrição
+              <input type="text" id="despDesc" maxlength="80" placeholder="Ex.: Conta de luz de outubro">
+            </label>
+            <label class="field">Categoria
+              <select id="despCat"></select>
+            </label>
+            <label class="field">Valor (R$)
+              <input type="number" id="despValor" min="0" step="0.01" inputmode="decimal">
+            </label>
+            <label class="field">Data / vencimento
+              <input type="date" id="despData">
+            </label>
+            <label class="field" style="justify-content:flex-end">
+              <span class="check" style="padding-bottom:10px"><input type="checkbox" id="despPago" checked> Já está paga</span>
+            </label>
+          </div>
+          <div class="form-foot">
+            <span class="form-msg" id="despMsg" role="alert"></span>
+            <button class="btn btn-primary" type="submit">Lançar despesa</button>
+          </div>
+        </form>
+        <div class="card">
+          <div class="card-head"><h3>Por categoria</h3><small id="catSub"></small></div>
+          <div class="cat-bars" id="catBars"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- utilidades ----------
+  const $ = (s) => document.querySelector(s);
+  const KEY = "gerenciador-pneus-v1";
+  const CATS = ["Compra de pneus", "Aluguel", "Salários", "Energia e água", "Impostos", "Manutenção de equipamentos", "Frete", "Outros"];
+  const BRANDS = ["Pirelli", "Michelin", "Goodyear", "Bridgestone", "Continental", "Firestone", "Dunlop", "XBRI", "Kumho", "Hankook"];
+  const SPEED = { L: 120, M: 130, N: 140, P: 150, Q: 160, R: 170, S: 180, T: 190, H: 210, V: 240, W: 270, Y: 300 };
+  // índice de carga 75..115 → kg por pneu
+  const LOAD_KG = [387,400,412,425,437,450,462,475,487,500,515,530,545,560,580,600,615,630,650,670,690,710,730,750,775,800,825,850,875,900,925,950,975,1000,1030,1060,1090,1120,1150,1180,1215];
+  const loadKg = (li) => (li >= 75 && li <= 115 ? LOAD_KG[li - 75] : null);
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const brl = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const brlShort = (v) => v >= 1000 ? "R$ " + (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil" : "R$ " + Math.round(v);
+  const intf = (v) => (v || 0).toLocaleString("pt-BR");
+  const pad = (n) => String(n).padStart(2, "0");
+  const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = () => isoOf(new Date());
+  const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+  const mkey = (iso) => iso.slice(0, 7);
+  const monthLabel = (key, opts = { month: "long", year: "numeric" }) => {
+    const [y, m] = key.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", opts);
+  };
+  const shiftMonth = (key, d) => { const [y, m] = key.split("-").map(Number); const dt = new Date(y, m - 1 + d, 1); return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`; };
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const medida = (t) => `${t.largura}/${t.perfil} R${t.aro}`;
+  const rotulo = (t) => `${medida(t)} · ${t.marca} ${t.modelo}`.trim();
+
+  function mulberry32(a) {
+    return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  // ---------- dados de exemplo ----------
+  function seed() {
+    const rnd = mulberry32(20261018);
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+    const tires = [
+      ["Pirelli", "Cinturato P1", 175, 70, 14, 84, "T", 24, 8, 289, 389],
+      ["Michelin", "Primacy 4", 205, 55, 16, 91, "V", 12, 6, 589, 769],
+      ["Goodyear", "Assurance MaxLife", 185, 65, 15, 88, "H", 5, 8, 379, 499],
+      ["Bridgestone", "Turanza ER300", 195, 55, 15, 85, "H", 16, 6, 409, 549],
+      ["Continental", "PowerContact 2", 175, 65, 14, 82, "T", 3, 6, 299, 399],
+      ["Firestone", "F-600", 165, 70, 13, 79, "T", 30, 10, 219, 299],
+      ["Pirelli", "Scorpion ATR", 265, 70, 16, 112, "T", 8, 4, 899, 1189],
+      ["Dunlop", "SP Touring R1", 185, 60, 15, 84, "H", 0, 4, 329, 439],
+      ["XBRI", "Ecology", 195, 60, 15, 88, "H", 20, 8, 249, 339],
+      ["Michelin", "LTX Force", 225, 65, 17, 102, "T", 6, 4, 789, 1029],
+    ].map(([marca, modelo, largura, perfil, aro, carga, vel, qtd, min, custo, preco]) =>
+      ({ id: uid(), marca, modelo, largura, perfil, aro, carga, vel, qtd, min, custo, preco }));
+
+    const movs = [], desp = [];
+    const plate = () => { const L = "ABCDEFGHIJKLMNOPRSTUVWXYZ"; const l = () => L[Math.floor(rnd() * L.length)]; const n = () => Math.floor(rnd() * 10); return `${l()}${l()}${l()}${n()}${l()}${n()}${n()}`; };
+    const clientes = ["Cliente balcão", "Auto Center Vila Nova", "Frota Transportes Lima", "Táxi", "Cliente balcão", "Oficina do Marcão", "Cliente balcão"];
+    const now = new Date();
+    let nf = 48120;
+    for (let k = 5; k >= 0; k--) {
+      const base = new Date(now.getFullYear(), now.getMonth() - k, 1);
+      const Y = base.getFullYear(), M = base.getMonth();
+      const monthDays = new Date(Y, M + 1, 0).getDate();
+      const lastDay = k === 0 ? now.getDate() : monthDays;
+      const day = () => 1 + Math.floor(rnd() * lastDay);
+      const d = (dd) => isoOf(new Date(Y, M, Math.min(dd, monthDays)));
+      // entradas (compras de fornecedor)
+      const nE = 1 + Math.floor(rnd() * 2);
+      for (let i = 0; i < nE; i++) {
+        const t = pick(tires), q = pick([8, 10, 12, 16]), dt = d(day()), id = uid();
+        movs.push({ id, tipo: "entrada", tireId: t.id, rotulo: rotulo(t), qtd: q, valor: t.custo, data: dt, obs: `NF ${nf++} · Distribuidora Rota Sul` });
+        desp.push({ id: uid(), data: dt, descricao: `Compra ${q}× ${medida(t)} ${t.marca}`, categoria: "Compra de pneus", valor: q * t.custo, pago: true, movId: id });
+      }
+      // saídas (vendas)
+      const nS = Math.max(2, Math.round((13 + rnd() * 9) * (lastDay / monthDays)));
+      let receita = 0;
+      for (let i = 0; i < nS; i++) {
+        const t = pick(tires), q = pick([1, 2, 2, 2, 4, 4]);
+        const c = pick(clientes);
+        movs.push({ id: uid(), tipo: "saida", tireId: t.id, rotulo: rotulo(t), qtd: q, valor: t.preco, data: d(day()), obs: `${c} · placa ${plate()}` });
+        receita += q * t.preco;
+      }
+      // despesas fixas
+      const fixed = [
+        ["Aluguel do galpão", "Aluguel", 3200, 5],
+        ["Folha de pagamento (2 funcionários)", "Salários", 5400, 5],
+        ["Energia elétrica", "Energia e água", Math.round((470 + rnd() * 170) * 100) / 100, 12],
+        ["Água e esgoto", "Energia e água", Math.round((85 + rnd() * 40) * 100) / 100, 12],
+        ["Internet e telefone", "Outros", 149.9, 10],
+        ["DAS · Simples Nacional", "Impostos", Math.round(receita * 0.06 * 100) / 100, 20],
+      ];
+      fixed.forEach(([descricao, categoria, valor, due]) => {
+        desp.push({ id: uid(), data: d(due), descricao, categoria, valor, pago: !(k === 0 && due > now.getDate()) });
+      });
+      if (k === 3) desp.push({ id: uid(), data: d(17), descricao: "Reparo do compressor de ar", categoria: "Manutenção de equipamentos", valor: 680, pago: true });
+      if (k === 1) desp.push({ id: uid(), data: d(9), descricao: "Pesos de balanceamento e válvulas", categoria: "Manutenção de equipamentos", valor: 312.4, pago: true });
+      if (rnd() > 0.4) desp.push({ id: uid(), data: d(day()), descricao: "Frete de mercadoria", categoria: "Frete", valor: Math.round(120 + rnd() * 160), pago: true });
+    }
+    return { tires, movs, desp, sample: true };
+  }
+
+  // ---------- estado ----------
+  let S;
+  function load() {
+    try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); if (S && S.tires) return; } } catch (e) {}
+    S = seed();
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  const ui = { tab: "painel", aro: "", finMonth: mkey(today()) };
+
+  // ---------- toast e modal ----------
+  let toastTimer;
+  function toast(msg) {
+    const root = $("#toastRoot");
+    root.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { root.innerHTML = ""; }, 2800);
+  }
+  function closeModal() { $("#modalRoot").innerHTML = ""; }
+  function openModal(title, bodyHtml, onMount) {
+    $("#modalRoot").innerHTML = `<div class="overlay" data-act="overlay"><div class="modal card" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <header><h3>${esc(title)}</h3><button class="x" data-act="close-modal" aria-label="Fechar">×</button></header>
+      <div class="body">${bodyHtml}</div></div></div>`;
+    onMount && onMount();
+  }
+  function confirmBox(title, text, okLabel, onOk) {
+    openModal(title, `<p style="margin:0 0 16px">${text}</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn" data-act="close-modal">Cancelar</button>
+        <button class="btn btn-danger" id="confirmOk">${esc(okLabel)}</button></div>`, () => {
+      $("#confirmOk").onclick = () => { closeModal(); onOk(); };
+      $("#confirmOk").focus();
+    });
+  }
+
+  // ---------- cálculos ----------
+  const stockState = (t) => (t.qtd <= 0 ? "bad" : t.qtd < t.min ? "warn" : "good");
+  const stockLabel = { bad: "Zerado", warn: "Repor", good: "OK" };
+  function monthTotals(key) {
+    const vendas = S.movs.filter((m) => m.tipo === "saida" && mkey(m.data) === key).reduce((a, m) => a + m.qtd * m.valor, 0);
+    const ds = S.desp.filter((d) => mkey(d.data) === key);
+    const despesas = ds.reduce((a, d) => a + d.valor, 0);
+    const aPagar = ds.filter((d) => !d.pago).reduce((a, d) => a + d.valor, 0);
+    const pneusVendidos = S.movs.filter((m) => m.tipo === "saida" && mkey(m.data) === key).reduce((a, m) => a + m.qtd, 0);
+    return { vendas, despesas, aPagar, saldo: vendas - despesas, pneusVendidos, nDesp: ds.length };
+  }
+  const byDateDesc = (a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0);
+
+  // ---------- render: painel ----------
+  function renderPainel() {
+    const totalUn = S.tires.reduce((a, t) => a + t.qtd, 0);
+    const valorCusto = S.tires.reduce((a, t) => a + t.qtd * t.custo, 0);
+    const valorVenda = S.tires.reduce((a, t) => a + t.qtd * t.preco, 0);
+    const low = S.tires.filter((t) => t.qtd < t.min);
+    const cur = monthTotals(mkey(today()));
+    $("#painelDate").textContent = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    $("#painelKpis").innerHTML = `
+      <div class="card kpi"><span class="kpi-label">Pneus em estoque</span><span class="kpi-value">${intf(totalUn)}</span><span class="kpi-sub">${S.tires.length} medidas/modelos cadastrados</span></div>
+      <div class="card kpi"><span class="kpi-label">Valor do estoque</span><span class="kpi-value">${brlShort(valorCusto)}</span><span class="kpi-sub">a custo · ${brl(valorVenda)} a preço de venda</span></div>
+      <div class="card kpi ${low.length ? "is-bad" : "is-good"}"><span class="kpi-label">Abaixo do mínimo</span><span class="kpi-value">${low.length}</span><span class="kpi-sub">${low.filter((t) => t.qtd <= 0).length} zerado(s)</span></div>
+      <div class="card kpi ${cur.saldo >= 0 ? "is-good" : "is-bad"}"><span class="kpi-label">Saldo de ${monthLabel(mkey(today()), { month: "long" })}</span><span class="kpi-value">${brlShort(Math.abs(cur.saldo)).replace("R$", cur.saldo < 0 ? "−R$" : "R$")}</span><span class="kpi-sub">${brl(cur.vendas)} em vendas · ${brl(cur.despesas)} em despesas</span></div>`;
+
+    // repor
+    $("#reporSub").textContent = low.length ? `${low.length} item(ns)` : "";
+    $("#reporList").innerHTML = low.length ? low.sort((a, b) => a.qtd / a.min - b.qtd / b.min).map((t) => `
+      <li><span class="pill ${stockState(t)}">${stockLabel[stockState(t)]}</span>
+        <div class="grow"><b class="size">${esc(medida(t))}</b><span>${esc(t.marca)} ${esc(t.modelo)} · ${t.qtd} un. (mín. ${t.min})</span></div>
+        <button class="btn btn-sm btn-in" data-act="go-mov" data-tipo="entrada" data-id="${t.id}">+ Entrada</button></li>`).join("")
+      : `<li class="muted" style="justify-content:center;padding:24px">Tudo acima do estoque mínimo.</li>`;
+
+    // recentes
+    const rec = [...S.movs].sort(byDateDesc).slice(0, 6);
+    $("#recentList").innerHTML = rec.length ? rec.map((m) => `
+      <li><span class="dot ${m.tipo === "entrada" ? "in" : "out"}" aria-label="${m.tipo}">${m.tipo === "entrada" ? "↓" : "↑"}</span>
+        <div class="grow"><b>${m.tipo === "entrada" ? "+" : "−"}${m.qtd} · <span class="size" style="display:inline;color:inherit">${esc(m.rotulo.split(" · ")[0])}</span></b><span>${fmtDate(m.data)} · ${esc(m.rotulo.split(" · ")[1] || "")} · ${esc(m.obs)}</span></div>
+        <span class="amt ${m.tipo === "saida" ? "pos" : ""}">${brl(m.qtd * m.valor)}</span></li>`).join("")
+      : `<li class="muted" style="justify-content:center;padding:24px">Nenhuma movimentação ainda. Registre a primeira entrada.</li>`;
+
+    renderChart();
+  }
+
+  function renderChart() {
+    const keys = []; let k = mkey(today());
+    for (let i = 5; i >= 0; i--) keys.push(shiftMonth(k, -i));
+    const data = keys.map((key) => ({ key, ...monthTotals(key) }));
+    const max = Math.max(1000, ...data.map((d) => Math.max(d.vendas, d.despesas)));
+    const step = [1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000].find((s) => max / s <= 4) || 100000;
+    const top = Math.ceil(max / step) * step;
+    const W = 640, H = 240, L = 58, R = 10, T = 12, B = 30;
+    const iw = W - L - R, ih = H - T - B;
+    const y = (v) => T + ih - (v / top) * ih;
+    const gw = iw / keys.length, bw = Math.min(26, gw * 0.3);
+    let grid = "", bars = "", ax = "";
+    for (let v = 0; v <= top; v += step) {
+      grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"></line>`;
+      ax += `<text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v === 0 ? "0" : brlShort(v)}</text>`;
+    }
+    data.forEach((d, i) => {
+      const cx = L + gw * i + gw / 2;
+      const cur = i === data.length - 1 ? " bar-cur" : "";
+      bars += `<rect class="bar-in${cur}" x="${cx - bw - 2}" y="${y(d.vendas)}" width="${bw}" height="${Math.max(0, T + ih - y(d.vendas))}" rx="2"><title>Vendas ${monthLabel(d.key)}: ${brl(d.vendas)}</title></rect>`;
+      bars += `<rect class="bar-out${cur}" x="${cx + 2}" y="${y(d.despesas)}" width="${bw}" height="${Math.max(0, T + ih - y(d.despesas))}" rx="2"><title>Despesas ${monthLabel(d.key)}: ${brl(d.despesas)}</title></rect>`;
+      ax += `<text x="${cx}" y="${H - 10}" text-anchor="middle">${monthLabel(d.key, { month: "short" }).replace(".", "")}</text>`;
+    });
+    $("#chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Vendas e despesas por mês"><g class="grid">${grid}</g>${bars}<g class="axis">${ax}</g></svg>`;
+  }
+
+  // ---------- render: estoque ----------
+  function renderEstoque() {
+    // chips de aro
+    const aros = [...new Set(S.tires.map((t) => t.aro))].sort((a, b) => a - b);
+    if (ui.aro && !aros.includes(Number(ui.aro))) ui.aro = "";
+    $("#aroChips").innerHTML = `<button class="chip-btn" data-act="aro" data-aro="" aria-pressed="${ui.aro === ""}">Todos os aros</button>` +
+      aros.map((a) => `<button class="chip-btn" data-act="aro" data-aro="${a}" aria-pressed="${String(ui.aro) === String(a)}">R${a}<em>${S.tires.filter((t) => t.aro === a).reduce((s, t) => s + t.qtd, 0)}</em></button>`).join("");
+
+    const brandSel = $("#stockBrand"), cur = brandSel.value;
+    const brands = [...new Set(S.tires.map((t) => t.marca))].sort();
+    brandSel.innerHTML = `<option value="">Todas as marcas</option>` + brands.map((b) => `<option ${b === cur ? "selected" : ""}>${esc(b)}</option>`).join("");
+
+    const q = $("#stockSearch").value.trim().toLowerCase();
+    const onlyLow = $("#stockLow").checked;
+    const list = S.tires.filter((t) =>
+      (!ui.aro || String(t.aro) === String(ui.aro)) &&
+      (!brandSel.value || t.marca === brandSel.value) &&
+      (!onlyLow || t.qtd < t.min) &&
+      (!q || `${medida(t)} ${t.largura}/${t.perfil}r${t.aro} ${t.marca} ${t.modelo}`.toLowerCase().includes(q))
+    ).sort((a, b) => a.aro - b.aro || a.largura - b.largura || a.perfil - b.perfil);
+
+    $("#stockBody").innerHTML = list.length ? list.map((t) => {
+      const st = stockState(t);
+      const pct = Math.min(100, (t.qtd / Math.max(t.min * 2.5, t.qtd, 1)) * 100);
+      const margem = t.preco > 0 ? ((t.preco - t.custo) / t.preco) * 100 : 0;
+      const kg = loadKg(Number(t.carga));
+      const tip = `Carga ${t.carga}${kg ? ` (${kg} kg por pneu)` : ""} · Velocidade ${t.vel}${SPEED[t.vel] ? ` (até ${SPEED[t.vel]} km/h)` : ""}`;
+      return `<tr>
+        <td><span class="size">${t.largura}/${t.perfil} <span class="r-aro">R${t.aro}</span></span></td>
+        <td class="brand-cell"><b>${esc(t.marca)}</b><span>${esc(t.modelo)}</span></td>
+        <td><span class="idx" title="${esc(tip)}">${esc(t.carga)}${esc(t.vel)}</span></td>
+        <td><div class="stock"><b>${t.qtd}</b><div class="meter ${st}" title="Mínimo: ${t.min}"><i style="width:${pct}%"></i></div></div></td>
+        <td style="white-space:nowrap"><span class="pill ${st}">${stockLabel[st]}</span> <span class="muted" style="font-size:.8rem">mín. ${t.min}</span></td>
+        <td class="r">${brl(t.custo)}</td>
+        <td class="r">${brl(t.preco)}</td>
+        <td class="r ${margem < 15 ? "neg" : ""}">${margem.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%</td>
+        <td><div class="row-actions">
+          <button class="btn btn-sm btn-in" data-act="go-mov" data-tipo="entrada" data-id="${t.id}" title="Registrar entrada">+ Entrada</button>
+          <button class="btn btn-sm btn-out" data-act="go-mov" data-tipo="saida" data-id="${t.id}" title="Registrar saída" ${t.qtd <= 0 ? "disabled" : ""}>− Saída</button>
+          <button class="btn-link" data-act="edit-tire" data-id="${t.id}">Editar</button>
+          <button class="btn-link danger" data-act="del-tire" data-id="${t.id}">Excluir</button>
+        </div></td></tr>`;
+    }).join("") : `<tr><td colspan="9" class="empty">${S.tires.length ? "Nenhum pneu com esses filtros." : "Nenhum pneu cadastrado. Clique em “+ Novo pneu” para começar."}</td></tr>`;
+
+    const un = list.reduce((a, t) => a + t.qtd, 0);
+    $("#stockFoot").innerHTML = list.length ? `<tr><td colspan="3">${list.length} item(ns) listado(s)</td><td>${intf(un)} un.</td><td></td>
+      <td class="r">${brl(list.reduce((a, t) => a + t.qtd * t.custo, 0))}</td><td class="r">${brl(list.reduce((a, t) => a + t.qtd * t.preco, 0))}</td><td colspan="2"></td></tr>` : "";
+
+    const low = S.tires.filter((t) => t.qtd < t.min).length;
+    const lc = $("#lowCount"); lc.hidden = !low; lc.textContent = low;
+  }
+
+  // ---------- render: movimentações ----------
+  const movTipo = () => (document.querySelector('input[name="movTipo"]:checked') || {}).value || "entrada";
+  function fillMovTireSelect(keepId) {
+    const sel = $("#movTire"), cur = keepId || sel.value;
+    const sorted = [...S.tires].sort((a, b) => a.aro - b.aro || a.largura - b.largura);
+    sel.innerHTML = sorted.length ? sorted.map((t) => `<option value="${t.id}" ${t.id === cur ? "selected" : ""}>${esc(rotulo(t))} — ${t.qtd} em estoque</option>`).join("")
+      : `<option value="">Cadastre um pneu no Estoque primeiro</option>`;
+    sel.disabled = !sorted.length;
+  }
+  function syncMovForm(resetValor) {
+    const tipo = movTipo();
+    const t = S.tires.find((x) => x.id === $("#movTire").value);
+    const isIn = tipo === "entrada";
+    $("#movValorLabel").textContent = isIn ? "Custo unitário (R$)" : "Preço de venda unitário (R$)";
+    $("#movObsLabel").textContent = isIn ? "Fornecedor / nota fiscal" : "Cliente / placa do veículo";
+    $("#movObs").placeholder = isIn ? "Ex.: NF 48200 · Distribuidora Rota Sul" : "Ex.: Cliente balcão · placa RTA4F21";
+    $("#movLancarWrap").hidden = !isIn;
+    $("#movSubmit").textContent = isIn ? "Registrar entrada" : "Registrar saída";
+    if (t && resetValor) $("#movValor").value = isIn ? t.custo : t.preco;
+    $("#movHint").textContent = t ? `${t.qtd} un. em estoque${isIn ? "" : ` · depois da saída: ${Math.max(0, t.qtd - (parseInt($("#movQtd").value, 10) || 0))}`}` : "";
+    const total = (parseInt($("#movQtd").value, 10) || 0) * (parseFloat($("#movValor").value) || 0);
+    $("#movTotal").textContent = total ? `Total ${brl(total)}` : "";
+    $("#movMsg").textContent = "";
+  }
+  function renderMovs() {
+    fillMovTireSelect();
+    syncMovForm(!$("#movValor").value);
+    const q = $("#movSearch").value.trim().toLowerCase();
+    const f = $("#movFilter").value;
+    const list = [...S.movs].filter((m) => (!f || m.tipo === f) && (!q || `${m.rotulo} ${m.obs}`.toLowerCase().includes(q))).sort(byDateDesc);
+    $("#movBody").innerHTML = list.length ? list.map((m) => {
+      const [med, desc] = m.rotulo.split(" · ");
+      return `<tr>
+        <td>${fmtDate(m.data)}</td>
+        <td><span class="pill ${m.tipo === "entrada" ? "good" : "bad"}">${m.tipo === "entrada" ? "Entrada" : "Saída"}</span></td>
+        <td><span class="size">${esc(med)}</span> <span class="muted">${esc(desc || "")}</span></td>
+        <td class="r"><b>${m.tipo === "entrada" ? "+" : "−"}${m.qtd}</b></td>
+        <td class="r">${brl(m.valor)}</td>
+        <td class="r">${brl(m.qtd * m.valor)}</td>
+        <td class="muted">${esc(m.obs)}</td>
+        <td class="r"><button class="btn-link danger" data-act="del-mov" data-id="${m.id}">Desfazer</button></td></tr>`;
+    }).join("") : `<tr><td colspan="8" class="empty">${S.movs.length ? "Nada encontrado com esse filtro." : "Nenhuma movimentação registrada."}</td></tr>`;
+  }
+
+  // ---------- render: financeiro ----------
+  function renderFin() {
+    const key = ui.finMonth;
+    const ml = monthLabel(key);
+    $("#finMonthLabel").textContent = ml.charAt(0).toUpperCase() + ml.slice(1);
+    const t = monthTotals(key);
+    const prev = monthTotals(shiftMonth(key, -1));
+    const delta = prev.vendas ? ((t.vendas - prev.vendas) / prev.vendas) * 100 : null;
+    $("#finKpis").innerHTML = `
+      <div class="card kpi"><span class="kpi-label">Vendas</span><span class="kpi-value pos">${brl(t.vendas)}</span><span class="kpi-sub">${t.pneusVendidos} pneus vendidos${delta !== null ? ` · ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}% vs. mês anterior` : ""}</span></div>
+      <div class="card kpi"><span class="kpi-label">Despesas</span><span class="kpi-value neg">${brl(t.despesas)}</span><span class="kpi-sub">${t.nDesp} lançamento(s)</span></div>
+      <div class="card kpi ${t.saldo >= 0 ? "is-good" : "is-bad"}"><span class="kpi-label">Saldo do mês</span><span class="kpi-value">${t.saldo < 0 ? "−" : ""}${brl(Math.abs(t.saldo))}</span><span class="kpi-sub">vendas menos despesas</span></div>
+      <div class="card kpi ${t.aPagar ? "" : "is-good"}"><span class="kpi-label">A pagar</span><span class="kpi-value" style="${t.aPagar ? "color:var(--warn)" : ""}">${brl(t.aPagar)}</span><span class="kpi-sub">despesas pendentes</span></div>`;
+
+    const ds = S.desp.filter((d) => mkey(d.data) === key).sort(byDateDesc);
+    $("#despSub").textContent = ds.length ? `${ds.length} lançamento(s)` : "";
+    $("#despBody").innerHTML = ds.length ? ds.map((d) => `<tr>
+      <td>${fmtDate(d.data)}</td>
+      <td>${esc(d.descricao)}${d.movId ? ` <span class="pill neutral" title="Gerada por uma entrada de estoque">estoque</span>` : ""}</td>
+      <td class="muted">${esc(d.categoria)}</td>
+      <td class="r">${brl(d.valor)}</td>
+      <td><button class="pill status-btn ${d.pago ? "good" : "warn"}" data-act="toggle-pago" data-id="${d.id}" title="Clique para alterar">${d.pago ? "Paga" : "Pendente"}</button></td>
+      <td class="r"><button class="btn-link danger" data-act="del-desp" data-id="${d.id}">Excluir</button></td></tr>`).join("")
+      : `<tr><td colspan="6" class="empty">Nenhuma despesa neste mês. Use o formulário ao lado para lançar.</td></tr>`;
+
+    const byCat = {};
+    ds.forEach((d) => { byCat[d.categoria] = (byCat[d.categoria] || 0) + d.valor; });
+    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const mx = cats.length ? cats[0][1] : 1;
+    $("#catSub").textContent = t.despesas ? brl(t.despesas) : "";
+    $("#catBars").innerHTML = cats.length ? cats.map(([c, v]) => `<div class="cat-row"><span>${esc(c)}</span><span class="num">${brl(v)} <span class="muted">· ${((v / t.despesas) * 100).toFixed(0)}%</span></span><div class="track"><i style="width:${(v / mx) * 100}%"></i></div></div>`).join("")
+      : `<p class="muted" style="margin:0">Sem despesas para comparar.</p>`;
+  }
+
+  function renderAll() {
+    $("#samplePill").hidden = !S.sample;
+    renderPainel(); renderEstoque(); renderMovs(); renderFin();
+  }
+
+  // ---------- abas ----------
+  function setTab(tab) {
+    ui.tab = tab;
+    ["painel", "estoque", "movs", "fin"].forEach((t) => {
+      $("#view-" + t).hidden = t !== tab;
+      $("#tab-" + t).setAttribute("aria-selected", String(t === tab));
+    });
+    try { history.replaceState(null, "", "#" + tab); } catch (e) {}
+  }
+
+  // ---------- pneu: criar/editar ----------
+  function tireForm(t) {
+    const isNew = !t;
+    t = t || { marca: "", modelo: "", largura: 195, perfil: 55, aro: 15, carga: 85, vel: "H", qtd: 0, min: 4, custo: "", preco: "" };
+    const velOpts = Object.entries(SPEED).map(([k, v]) => `<option value="${k}" ${k === t.vel ? "selected" : ""}>${k} · até ${v} km/h</option>`).join("");
+    openModal(isNew ? "Novo pneu" : "Editar pneu", `
+      <form id="tireForm" novalidate>
+        <div class="size-preview" id="tfPreview"></div>
+        <div class="form-grid">
+          <label class="field">Marca<input id="tfMarca" list="brandList" value="${esc(t.marca)}" placeholder="Ex.: Pirelli"></label>
+          <datalist id="brandList">${BRANDS.map((b) => `<option value="${b}"></option>`).join("")}</datalist>
+          <label class="field">Modelo<input id="tfModelo" value="${esc(t.modelo)}" placeholder="Ex.: Cinturato P7"></label>
+          <label class="field">Largura (mm)<input id="tfLarg" type="number" min="125" max="355" step="5" value="${t.largura}"></label>
+          <label class="field">Perfil (%)<input id="tfPerf" type="number" min="25" max="85" step="5" value="${t.perfil}"></label>
+          <label class="field">Aro (pol.)<input id="tfAro" type="number" min="12" max="24" step="1" value="${t.aro}"></label>
+          <label class="field">Índice de carga<input id="tfCarga" type="number" min="60" max="130" value="${esc(t.carga)}"></label>
+          <label class="field span-2">Índice de velocidade<select id="tfVel">${velOpts}</select></label>
+          ${isNew ? `<label class="field">Estoque inicial<input id="tfQtd" type="number" min="0" step="1" value="${t.qtd}"></label>` : ""}
+          <label class="field">Estoque mínimo<input id="tfMin" type="number" min="0" step="1" value="${t.min}"></label>
+          <label class="field">Custo (R$)<input id="tfCusto" type="number" min="0" step="0.01" value="${t.custo}"></label>
+          <label class="field">Preço de venda (R$)<input id="tfPreco" type="number" min="0" step="0.01" value="${t.preco}"></label>
+        </div>
+        ${isNew ? "" : `<p class="hint" style="margin:12px 0 0">Para mudar a quantidade (${t.qtd} un.), registre uma entrada ou saída.</p>`}
+        <div class="form-foot"><span class="form-msg" id="tfMsg" role="alert"></span>
+          <div style="display:flex;gap:8px"><button type="button" class="btn" data-act="close-modal">Cancelar</button><button class="btn btn-primary" type="submit">${isNew ? "Cadastrar pneu" : "Salvar alterações"}</button></div></div>
+      </form>`, () => {
+      const prev = () => {
+        const L = $("#tfLarg").value, P = $("#tfPerf").value, A = $("#tfAro").value, C = $("#tfCarga").value, V = $("#tfVel").value;
+        const kg = loadKg(Number(C));
+        $("#tfPreview").innerHTML = `${esc(L || "—")}/${esc(P || "—")} R${esc(A || "—")} ${esc(C)}${esc(V)}<small>Largura ${esc(L)} mm · perfil ${esc(P)}% da largura · aro ${esc(A)}″${kg ? ` · suporta ${kg} kg por pneu` : ""} · até ${SPEED[V]} km/h</small>`;
+      };
+      ["#tfLarg", "#tfPerf", "#tfAro", "#tfCarga", "#tfVel"].forEach((s) => $(s).addEventListener("input", prev));
+      prev();
+      $("#tfMarca").focus();
+      $("#tireForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const v = {
+          marca: $("#tfMarca").value.trim(), modelo: $("#tfModelo").value.trim(),
+          largura: parseInt($("#tfLarg").value, 10), perfil: parseInt($("#tfPerf").value, 10), aro: parseInt($("#tfAro").value, 10),
+          carga: parseInt($("#tfCarga").value, 10), vel: $("#tfVel").value,
+          min: parseInt($("#tfMin").value, 10) || 0, custo: parseFloat($("#tfCusto").value), preco: parseFloat($("#tfPreco").value),
+        };
+        const msg = $("#tfMsg");
+        if (!v.marca) return (msg.textContent = "Informe a marca.");
+        if (!v.largura || !v.perfil || !v.aro) return (msg.textContent = "Preencha largura, perfil e aro da medida.");
+        if (!v.carga) return (msg.textContent = "Informe o índice de carga (ex.: 91).");
+        if (!(v.custo >= 0) || !(v.preco > 0)) return (msg.textContent = "Informe custo e preço de venda.");
+        const dup = S.tires.find((x) => x !== t && x.id !== t.id && x.marca.toLowerCase() === v.marca.toLowerCase() && x.modelo.toLowerCase() === v.modelo.toLowerCase() && x.largura === v.largura && x.perfil === v.perfil && x.aro === v.aro);
+        if (dup) return (msg.textContent = "Esse pneu já está cadastrado. Use “+ Entrada” para somar ao estoque.");
+        if (isNew) {
+          const nt = { id: uid(), ...v, qtd: Math.max(0, parseInt($("#tfQtd").value, 10) || 0) };
+          S.tires.push(nt);
+          toast(`Cadastrado: ${medida(nt)} ${nt.marca}`);
+        } else {
+          Object.assign(S.tires.find((x) => x.id === t.id), v);
+          toast("Alterações salvas");
+        }
+        save(); closeModal(); renderAll();
+      });
+    });
+  }
+
+  // ---------- ações ----------
+  function goMov(tipo, id) {
+    setTab("movs");
+    document.querySelector(`input[name="movTipo"][value="${tipo}"]`).checked = true;
+    fillMovTireSelect(id);
+    $("#movQtd").value = tipo === "entrada" ? 8 : 4;
+    const t = S.tires.find((x) => x.id === $("#movTire").value);
+    if (t && tipo === "saida" && t.qtd < 4) $("#movQtd").value = Math.max(1, t.qtd);
+    syncMovForm(true);
+    $("#movForm").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#movQtd").focus({ preventScroll: true });
+    $("#movQtd").select();
+  }
+
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    const act = el.dataset.act, id = el.dataset.id;
+    if (act === "overlay" && e.target !== el) return;
+    switch (act) {
+      case "tab": setTab(el.dataset.tab); break;
+      case "overlay": case "close-modal": closeModal(); break;
+      case "go-mov": goMov(el.dataset.tipo, id); break;
+      case "aro": ui.aro = el.dataset.aro; renderEstoque(); break;
+      case "new-tire": tireForm(); break;
+      case "edit-tire": tireForm(S.tires.find((t) => t.id === id)); break;
+      case "del-tire": {
+        const t = S.tires.find((x) => x.id === id);
+        confirmBox("Excluir pneu", `Excluir <b>${esc(rotulo(t))}</b> do estoque? ${t.qtd ? `Ainda há ${t.qtd} unidade(s). ` : ""}O histórico de movimentações é mantido.`, "Excluir pneu", () => {
+          S.tires = S.tires.filter((x) => x.id !== id); save(); renderAll(); toast("Pneu excluído");
+        });
+        break;
+      }
+      case "del-mov": {
+        const m = S.movs.find((x) => x.id === id);
+        const t = S.tires.find((x) => x.id === m.tireId);
+        if (t && m.tipo === "entrada" && t.qtd - m.qtd < 0) { toast(`Não dá para desfazer: só restam ${t.qtd} un. dessa entrada no estoque.`); break; }
+        const linked = S.desp.find((d) => d.movId === m.id);
+        confirmBox("Desfazer movimentação", `Desfazer ${m.tipo === "entrada" ? "a entrada" : "a saída"} de <b>${m.qtd} un.</b> de ${esc(m.rotulo)} em ${fmtDate(m.data)}?${t ? ` O estoque volta para ${t.qtd + (m.tipo === "entrada" ? -m.qtd : m.qtd)} un.` : ""}${linked ? " A despesa de compra ligada a ela também será excluída." : ""}`, "Desfazer", () => {
+          if (t) t.qtd += m.tipo === "entrada" ? -m.qtd : m.qtd;
+          S.movs = S.movs.filter((x) => x.id !== id);
+          S.desp = S.desp.filter((d) => d.movId !== id);
+          save(); renderAll(); toast("Movimentação desfeita");
+        });
+        break;
+      }
+      case "toggle-pago": { const d = S.desp.find((x) => x.id === id); d.pago = !d.pago; save(); renderAll(); toast(d.pago ? "Marcada como paga" : "Marcada como pendente"); break; }
+      case "del-desp": {
+        const d = S.desp.find((x) => x.id === id);
+        confirmBox("Excluir despesa", `Excluir <b>${esc(d.descricao)}</b> (${brl(d.valor)})?`, "Excluir", () => {
+          S.desp = S.desp.filter((x) => x.id !== id); save(); renderAll(); toast("Despesa excluída");
+        });
+        break;
+      }
+      case "month": ui.finMonth = shiftMonth(ui.finMonth, Number(el.dataset.d)); renderFin(); break;
+      case "reset-sample":
+        confirmBox("Restaurar exemplo", "Substituir tudo o que está aqui pelos dados de exemplo?", "Restaurar", () => { S = seed(); save(); ui.finMonth = mkey(today()); $("#movValor").value = ""; renderAll(); toast("Dados de exemplo restaurados"); });
+        break;
+      case "reset-empty":
+        confirmBox("Começar do zero", "Apagar todos os pneus, movimentações e despesas para testar com os seus próprios dados?", "Apagar tudo", () => { S = { tires: [], movs: [], desp: [], sample: false }; save(); renderAll(); setTab("estoque"); toast("Tudo limpo. Cadastre o primeiro pneu."); });
+        break;
+    }
+  });
+
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#modalRoot").innerHTML) closeModal(); });
+
+  // filtros
+  ["#stockSearch", "#stockBrand", "#stockLow"].forEach((s) => $(s).addEventListener("input", renderEstoque));
+  ["#movSearch", "#movFilter"].forEach((s) => $(s).addEventListener("input", renderMovs));
+
+  // formulário de movimentação
+  document.querySelectorAll('input[name="movTipo"]').forEach((r) => r.addEventListener("change", () => syncMovForm(true)));
+  $("#movTire").addEventListener("change", () => syncMovForm(true));
+  ["#movQtd", "#movValor"].forEach((s) => $(s).addEventListener("input", () => syncMovForm(false)));
+  $("#movForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#movMsg");
+    const tipo = movTipo();
+    const t = S.tires.find((x) => x.id === $("#movTire").value);
+    const q = parseInt($("#movQtd").value, 10);
+    const valor = parseFloat($("#movValor").value);
+    const data = $("#movData").value || today();
+    if (!t) return (msg.textContent = "Escolha um pneu. Se a lista estiver vazia, cadastre-o no Estoque.");
+    if (!(q > 0)) return (msg.textContent = "Quantidade precisa ser 1 ou mais.");
+    if (!(valor >= 0)) return (msg.textContent = "Informe o valor unitário.");
+    if (tipo === "saida" && q > t.qtd) return (msg.textContent = `Estoque insuficiente: há ${t.qtd} un. de ${medida(t)}.`);
+    t.qtd += tipo === "entrada" ? q : -q;
+    const m = { id: uid(), tipo, tireId: t.id, rotulo: rotulo(t), qtd: q, valor, data, obs: $("#movObs").value.trim() || (tipo === "entrada" ? "Entrada manual" : "Cliente balcão") };
+    S.movs.push(m);
+    if (tipo === "entrada" && $("#movLancar").checked) {
+      S.desp.push({ id: uid(), data, descricao: `Compra ${q}× ${medida(t)} ${t.marca}`, categoria: "Compra de pneus", valor: q * valor, pago: true, movId: m.id });
+    }
+    save();
+    $("#movObs").value = "";
+    renderAll();
+    toast(`${tipo === "entrada" ? "Entrada" : "Saída"} registrada: ${tipo === "entrada" ? "+" : "−"}${q} ${medida(t)} (agora ${t.qtd} un.)`);
+  });
+
+  // formulário de despesa
+  $("#despForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#despMsg");
+    const descricao = $("#despDesc").value.trim();
+    const valor = parseFloat($("#despValor").value);
+    const data = $("#despData").value || today();
+    if (!descricao) return (msg.textContent = "Descreva a despesa.");
+    if (!(valor > 0)) return (msg.textContent = "Informe um valor maior que zero.");
+    S.desp.push({ id: uid(), data, descricao, categoria: $("#despCat").value, valor, pago: $("#despPago").checked });
+    save();
+    msg.textContent = "";
+    $("#despDesc").value = ""; $("#despValor").value = "";
+    ui.finMonth = mkey(data);
+    renderAll();
+    toast(`Despesa lançada em ${monthLabel(mkey(data))}`);
+  });
+
+  // ---------- início ----------
+  load();
+  $("#despCat").innerHTML = CATS.map((c) => `<option>${c}</option>`).join("");
+  $("#despCat").value = "Outros";
+  $("#movData").value = today();
+  $("#despData").value = today();
+  renderAll();
+  const h = (location.hash || "").slice(1);
+  setTab(["painel", "estoque", "movs", "fin"].includes(h) ? h : "painel");
+  document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+})();
+</script>
