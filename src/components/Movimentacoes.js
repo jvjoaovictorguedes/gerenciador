@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { brl, dataBR, hoje, medida, porDataDesc, rotulo } from '../lib/pneus';
 
-export default function Movimentacoes({ dados, predefinido, onRegistrar, onDesfazer }) {
+export default function Movimentacoes({ dados, nomes = {}, predefinido, onRegistrar, onDesfazer }) {
   const { tires, movs } = dados;
   const ordenados = useMemo(() => [...tires].sort((a, b) => a.aro - b.aro || a.largura - b.largura || a.perfil - b.perfil), [tires]);
 
@@ -158,7 +158,7 @@ export default function Movimentacoes({ dados, predefinido, onRegistrar, onDesfa
                     <td className="r"><b>{m.tipo === 'entrada' ? '+' : '−'}{m.qtd}</b></td>
                     <td className="r">{brl(m.valor)}</td>
                     <td className="r">{brl(m.qtd * m.valor)}</td>
-                    <td className="muted">{m.obs}</td>
+                    <td className="muted">{m.obs}{m.por && nomes[m.por] ? <> · por {nomes[m.por]}</> : null}</td>
                     <td className="r"><button className="btn-link danger" onClick={() => onDesfazer(m)}>Desfazer</button></td>
                   </tr>
                 );

@@ -7,7 +7,13 @@ Ele funciona de dois jeitos:
 - **Modo demonstração.** É o que acontece quando o app roda sem configuração. Ele já vem com dados de exemplo, e tudo fica guardado só no navegador.
 - **Modo loja.** Os dados ficam no banco de dados online (Supabase), com login. Os mesmos dados aparecem no computador da loja, no celular e para cada funcionário.
 
-Para usar de verdade, siga os 4 passos abaixo. Leva uns 20 minutos, e tudo cabe nos planos gratuitos.
+- **Site publicado no Claude.** O mesmo app, aberto como site no Claude. O login é a conta Claude de cada pessoa, e os dados ficam no banco do próprio site. Quem pode usar você define pelo botão **Compartilhar** do site:
+  - **Colaborador** registra entradas, saídas e despesas.
+  - **Leitor** só consulta.
+
+  Não precisa configurar nada, mas cada funcionário precisa ter uma conta Claude. O site carrega na tela as 1.000 movimentações e as 1.000 despesas mais recentes.
+
+Para usar com Supabase (login por e-mail e senha, sem depender de conta Claude), siga os 4 passos abaixo. Leva uns 20 minutos, e tudo cabe nos planos gratuitos.
 
 ---
 

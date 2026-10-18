@@ -246,3 +246,9 @@ tfoot td { font-weight: 600; background: var(--surface-2); border-top: 1px solid
 .login-top h1 { font-size: 1.5rem; text-transform: uppercase; letter-spacing: .04em; }
 .login form { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 .login .btn-primary { justify-content: center; padding-block: 11px; }
+.user-claude { display: inline-flex; align-items: center; gap: 8px; color: var(--bar-ink); }
+.user-claude img { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+.aviso .btn { margin-left: 8px; }
+.sem-acesso .card { width: min(460px, 100%); }
+.sem-acesso .body { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.sem-acesso p { margin: 0; }

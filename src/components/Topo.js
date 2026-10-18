@@ -15,7 +15,7 @@ export function Logo() {
   );
 }
 
-export default function Topo({ aba, onAba, abaixoDoMinimo, modoDemo, exemplo, email, onRestaurar, onZerar, onSair }) {
+export default function Topo({ aba, onAba, abaixoDoMinimo, modo, exemplo, email, usuario, onRestaurar, onZerar, onSair }) {
   return (
     <header className="topbar">
       <div className="wrap">
@@ -26,17 +26,24 @@ export default function Topo({ aba, onAba, abaixoDoMinimo, modoDemo, exemplo, em
             <span>Estoque por medida e marca · entradas e saídas · despesas</span>
           </div>
           <div className="brand-actions">
-            {modoDemo ? (
+            {modo === 'demo' && (
               <>
                 {exemplo && <span className="sample-pill">Dados de exemplo</span>}
                 <button className="btn-ghost-bar" onClick={onRestaurar}>Restaurar exemplo</button>
                 <button className="btn-ghost-bar" onClick={onZerar}>Começar do zero</button>
               </>
-            ) : (
+            )}
+            {modo === 'supabase' && (
               <>
                 <span className="user-chip" title={email}>{email}</span>
                 <button className="btn-ghost-bar" onClick={onSair}>Sair</button>
               </>
+            )}
+            {modo === 'claude' && usuario && (
+              <span className="user-chip user-claude">
+                {usuario.avatar && <img src={usuario.avatar} alt="" />}
+                <span>{usuario.nome || 'Você'}{usuario.dono ? ' · dono' : usuario.podeEscrever ? '' : ' · só leitura'}</span>
+              </span>
             )}
           </div>
         </div>

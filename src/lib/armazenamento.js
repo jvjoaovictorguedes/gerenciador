@@ -4,12 +4,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { dadosDeExemplo, uid } from './exemplo';
 import { medida, rotulo, hoje } from './pneus';
+import { criarArmazenamentoClaude } from './armazenamentoClaude';
 
 const url = process.env.REACT_APP_SUPABASE_URL;
 const chave = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 export const supabase = url && chave ? createClient(url, chave) : null;
-export const modoDemo = !supabase;
 
 const CAMPOS_PNEU = ['marca', 'modelo', 'largura', 'perfil', 'aro', 'carga', 'vel', 'min', 'custo', 'preco'];
 
@@ -183,5 +183,31 @@ const armazenamentoSupabase = {
   },
 };
 
-export const armazenamento = modoDemo ? armazenamentoLocal : armazenamentoSupabase;
 export { armazenamentoLocal };
+
+// Decide onde os dados ficam, nesta ordem:
+// 1. Supabase, se configurado (site hospedado na Cloudflare, por exemplo);
+// 2. banco do site no Claude, quando aberto como site publicado no Claude;
+// 3. navegador, como demonstração.
+// Resolve { modo, api, usuario } com modo 'supabase' | 'claude' | 'sem-acesso' | 'demo'.
+export async function iniciarArmazenamento() {
+  if (supabase) return { modo: 'supabase', api: armazenamentoSupabase };
+  const claude = typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function' ? window.claude : null;
+  if (!claude) return { modo: 'demo', api: armazenamentoLocal };
+  const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+  if (!db) return { modo: 'sem-acesso', api: armazenamentoLocal };
+  const eu = user ? await user.me() : null;
+  const podeEscrever = user ? await user.can('data.write') : null;
+  return {
+    modo: 'claude',
+    api: criarArmazenamentoClaude(db, eu && eu.id),
+    usuario: {
+      id: eu && eu.id,
+      nome: (eu && eu.name) || '',
+      avatar: eu && eu.avatarUrl,
+      dono: !!(eu && eu.isOwner),
+      podeEscrever: podeEscrever !== false,
+      nomes: async (ids) => (user ? user.profiles(ids) : {}),
+    },
+  };
+}

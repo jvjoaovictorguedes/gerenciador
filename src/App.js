@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
-import Topo, { ABAS } from './components/Topo';
+import Topo, { ABAS, Logo } from './components/Topo';
 import Painel from './components/Painel';
 import Estoque from './components/Estoque';
 import Movimentacoes from './components/Movimentacoes';
@@ -8,7 +8,7 @@ import Financeiro from './components/Financeiro';
 import PneuModal from './components/PneuModal';
 import Login from './components/Login';
 import { Confirmacao } from './components/Modal';
-import { armazenamento, armazenamentoLocal, modoDemo, supabase } from './lib/armazenamento';
+import { armazenamentoLocal, iniciarArmazenamento, supabase } from './lib/armazenamento';
 import { brl, dataBR, hoje, medida, mesDe, nomeMes, rotulo } from './lib/pneus';
 
 const abaDoEndereco = () => {
@@ -16,7 +16,8 @@ const abaDoEndereco = () => {
   return ABAS.some(([id]) => id === h) ? h : 'painel';
 };
 
-function Gerenciador({ email }) {
+function Gerenciador({ ambiente, email }) {
+  const { modo, api, usuario } = ambiente;
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState('');
   const [aba, setAbaEstado] = useState(abaDoEndereco);
@@ -25,17 +26,37 @@ function Gerenciador({ email }) {
   const [confirmar, setConfirmar] = useState(null);
   const [pneuModal, setPneuModal] = useState(null); // null fechado · {} novo · {pneu} edição
   const [predefinido, setPredefinido] = useState(null);
+  const [nomes, setNomes] = useState({});
 
+  // Com dados ao vivo (site no Claude) as telas se atualizam sozinhas;
+  // nos outros modos, recarrega depois de cada alteração.
+  const aoVivo = typeof api.assinar === 'function';
   const recarregar = useCallback(async () => {
+    if (aoVivo) return;
     try {
-      setDados(await armazenamento.carregar());
+      setDados(await api.carregar());
       setErro('');
     } catch (e) {
       setErro(e.message);
     }
-  }, []);
+  }, [api, aoVivo]);
 
-  useEffect(() => { recarregar(); }, [recarregar]);
+  useEffect(() => {
+    if (aoVivo) return api.assinar((d) => { setDados(d); setErro(''); }, setErro);
+    recarregar();
+  }, [api, aoVivo, recarregar]);
+
+  // Nome de quem registrou cada movimentação (login pela conta Claude).
+  useEffect(() => {
+    if (!usuario || !dados) return;
+    const ids = [...new Set(dados.movs.map((m) => m.por).filter(Boolean))];
+    if (!ids.length) return;
+    let ativo = true;
+    usuario.nomes(ids).then((ps) => {
+      if (ativo) setNomes(Object.fromEntries(Object.entries(ps).map(([id, p]) => [id, p.name])));
+    });
+    return () => { ativo = false; };
+  }, [usuario, dados]);
 
   useEffect(() => {
     if (!aviso) return;
@@ -45,10 +66,10 @@ function Gerenciador({ email }) {
 
   const setAba = (id) => {
     setAbaEstado(id);
-    window.history.replaceState(null, '', '#' + id);
+    try { window.history.replaceState(null, '', '#' + id); } catch (e) { /* endereço fixo neste ambiente */ }
   };
 
-  // Executa uma alteração, recarrega os dados e mostra o resultado.
+  // Executa uma alteração, atualiza os dados e mostra o resultado.
   const executar = async (acao, mensagem) => {
     try {
       const r = await acao();
@@ -67,7 +88,7 @@ function Gerenciador({ email }) {
   if (!dados) {
     return (
       <div className="carregando">
-        {erro ? <div className="aviso erro"><b>Não foi possível carregar os dados.</b> {erro} <button className="btn btn-sm" onClick={recarregar}>Tentar de novo</button></div> : 'Carregando…'}
+        {erro ? <div className="aviso erro"><b>Não foi possível carregar os dados.</b> {erro} {!aoVivo && <button className="btn btn-sm" onClick={recarregar}>Tentar de novo</button>}</div> : 'Carregando…'}
       </div>
     );
   }
@@ -80,9 +101,10 @@ function Gerenciador({ email }) {
         aba={aba}
         onAba={setAba}
         abaixoDoMinimo={abaixoDoMinimo}
-        modoDemo={modoDemo}
+        modo={modo}
         exemplo={dados.exemplo}
         email={email}
+        usuario={usuario}
         onSair={() => supabase.auth.signOut()}
         onRestaurar={() => setConfirmar({
           titulo: 'Restaurar exemplo', texto: 'Substituir tudo o que está aqui pelos dados de exemplo?', rotulo: 'Restaurar',
@@ -95,9 +117,23 @@ function Gerenciador({ email }) {
       />
 
       <main className="wrap">
-        {modoDemo && (
+        {modo === 'demo' && (
           <div className="aviso">
             <b>Modo demonstração.</b> Os dados ficam só neste navegador. Para guardar no banco de dados online, siga o passo a passo do arquivo <code>COMO-USAR.md</code>.
+          </div>
+        )}
+        {modo === 'claude' && usuario && !usuario.podeEscrever && (
+          <div className="aviso"><b>Acesso só para ver.</b> Para registrar entradas, saídas e despesas, peça ao dono do site acesso de Colaborador.</div>
+        )}
+        {modo === 'claude' && dados.exemplo && usuario && usuario.podeEscrever && (
+          <div className="aviso">
+            <b>Há dados de exemplo no site.</b> Eles servem para você testar. Quando for usar de verdade, apague-os.
+            <button className="btn btn-sm" onClick={() => setConfirmar({
+              titulo: 'Apagar dados de exemplo',
+              texto: 'Apagar os pneus, movimentações e despesas de exemplo? O que você cadastrou continua.',
+              rotulo: 'Apagar exemplos',
+              acao: () => executar(() => api.apagarExemplos(), 'Dados de exemplo apagados'),
+            })}>Apagar dados de exemplo</button>
           </div>
         )}
         {erro && <div className="aviso erro"><b>Falha ao atualizar.</b> {erro}</div>}
@@ -114,7 +150,7 @@ function Gerenciador({ email }) {
               titulo: 'Excluir pneu',
               texto: `Excluir ${rotulo(t)} do estoque? ${t.qtd ? `Ainda há ${t.qtd} unidade(s). ` : ''}O histórico de movimentações é mantido.`,
               rotulo: 'Excluir pneu',
-              acao: () => executar(() => armazenamento.excluirPneu(t.id), 'Pneu excluído'),
+              acao: () => executar(() => api.excluirPneu(t.id), 'Pneu excluído'),
             })}
           />
         )}
@@ -122,10 +158,11 @@ function Gerenciador({ email }) {
         {aba === 'movs' && (
           <Movimentacoes
             dados={dados}
+            nomes={nomes}
             predefinido={predefinido}
             onRegistrar={async (m) => {
               const t = dados.tires.find((x) => x.id === m.pneu_id);
-              await armazenamento.registrarMovimentacao(m);
+              await api.registrarMovimentacao(m);
               await recarregar();
               const agora = t.qtd + (m.tipo === 'entrada' ? m.qtd : -m.qtd);
               setAviso(`${m.tipo === 'entrada' ? 'Entrada' : 'Saída'} registrada: ${m.tipo === 'entrada' ? '+' : '−'}${m.qtd} ${medida(t)} (agora ${agora} un.)`);
@@ -139,7 +176,7 @@ function Gerenciador({ email }) {
                   (t ? ` O estoque volta para ${t.qtd + (m.tipo === 'entrada' ? -m.qtd : m.qtd)} un.` : '') +
                   (ligada ? ' A despesa de compra ligada a ela também será excluída.' : ''),
                 rotulo: 'Desfazer',
-                acao: () => executar(() => armazenamento.desfazerMovimentacao(m.id), 'Movimentação desfeita'),
+                acao: () => executar(() => api.desfazerMovimentacao(m.id), 'Movimentação desfeita'),
               });
             }}
           />
@@ -151,15 +188,15 @@ function Gerenciador({ email }) {
             mes={mesFin}
             onMes={setMesFin}
             onAdicionar={async (d) => {
-              await armazenamento.adicionarDespesa(d);
+              await api.adicionarDespesa(d);
               await recarregar();
               setMesFin(mesDe(d.data));
               setAviso(`Despesa lançada em ${nomeMes(mesDe(d.data))}`);
             }}
-            onMarcarPago={(d) => executar(() => armazenamento.marcarPago(d.id, !d.pago), d.pago ? 'Marcada como pendente' : 'Marcada como paga')}
+            onMarcarPago={(d) => executar(() => api.marcarPago(d.id, !d.pago), d.pago ? 'Marcada como pendente' : 'Marcada como paga')}
             onExcluir={(d) => setConfirmar({
               titulo: 'Excluir despesa', texto: `Excluir ${d.descricao} (${brl(d.valor)})?`, rotulo: 'Excluir',
-              acao: () => executar(() => armazenamento.excluirDespesa(d.id), 'Despesa excluída'),
+              acao: () => executar(() => api.excluirDespesa(d.id), 'Despesa excluída'),
             })}
           />
         )}
@@ -171,7 +208,7 @@ function Gerenciador({ email }) {
           tires={dados.tires}
           onFechar={() => setPneuModal(null)}
           onSalvar={async (p) => {
-            await armazenamento.salvarPneu(p);
+            await api.salvarPneu(p);
             await recarregar();
             setPneuModal(null);
             setAviso(p.id ? 'Alterações salvas' : `Cadastrado: ${medida(p)} ${p.marca}`);
@@ -194,18 +231,41 @@ function Gerenciador({ email }) {
   );
 }
 
-export default function App() {
-  // undefined: verificando login · null: deslogado
-  const [sessao, setSessao] = useState(modoDemo ? { demo: true } : undefined);
+// Site publicado no Claude, mas esta pessoa não entrou com a conta ou não recebeu acesso.
+function SemAcesso({ onDemo }) {
+  return (
+    <div className="login sem-acesso">
+      <div className="card">
+        <div className="login-top"><Logo /><h1>Gerenciador de Pneus</h1></div>
+        <div className="body">
+          <p><b>Entre com a sua conta Claude para usar o sistema.</b></p>
+          <p className="muted">Se você já entrou, peça ao dono da loja para liberar o seu acesso pelo botão Compartilhar do site.</p>
+          <button className="btn" onClick={onDemo}>Ver uma demonstração com dados de exemplo</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
+function ComLoginSupabase({ ambiente }) {
+  // undefined: verificando login · null: deslogado
+  const [sessao, setSessao] = useState(undefined);
   useEffect(() => {
-    if (modoDemo) return;
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
     const { data } = supabase.auth.onAuthStateChange((_evento, s) => setSessao(s));
     return () => data.subscription.unsubscribe();
   }, []);
-
   if (sessao === undefined) return <div className="carregando">Carregando…</div>;
   if (!sessao) return <Login />;
-  return <Gerenciador email={sessao.user?.email} />;
+  return <Gerenciador ambiente={ambiente} email={sessao.user?.email} />;
+}
+
+export default function App() {
+  const [ambiente, setAmbiente] = useState(null);
+  useEffect(() => { iniciarArmazenamento().then(setAmbiente); }, []);
+
+  if (!ambiente) return <div className="carregando">Carregando…</div>;
+  if (ambiente.modo === 'sem-acesso') return <SemAcesso onDemo={() => setAmbiente({ modo: 'demo', api: armazenamentoLocal })} />;
+  if (ambiente.modo === 'supabase') return <ComLoginSupabase ambiente={ambiente} />;
+  return <Gerenciador ambiente={ambiente} />;
 }
