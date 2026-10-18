@@ -201,7 +201,13 @@ const armazenamentoLocal = {
 
 // ---------- Supabase ----------
 const falhou = (error) => {
-  if (error) throw new Error(error.message || 'Não foi possível falar com o banco de dados.');
+  if (!error) return;
+  const tabela = /table '?public\.(\w+)/i.exec(error.message || '');
+  if (error.code === 'PGRST205' || tabela) {
+    throw new Error(`A tabela ${tabela ? tabela[1] : ''} não existe no Supabase. Rode o arquivo supabase/schema.sql inteiro no SQL Editor.`);
+  }
+  if (error.code === 'PGRST202') throw new Error('As funções de entrada e saída não existem no Supabase. Rode o arquivo supabase/schema.sql inteiro no SQL Editor.');
+  throw new Error(error.message || 'Não foi possível falar com o banco de dados.');
 };
 
 // O Supabase devolve no máximo 1000 linhas por consulta; busca em páginas.

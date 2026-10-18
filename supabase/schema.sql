@@ -159,3 +159,6 @@ revoke all on function public.registrar_movimentacao(text, uuid, int, numeric, d
 revoke all on function public.desfazer_movimentacao(uuid) from public, anon;
 grant execute on function public.registrar_movimentacao(text, uuid, int, numeric, date, text, boolean) to authenticated;
 grant execute on function public.desfazer_movimentacao(uuid) to authenticated;
+
+-- Avisa a API do Supabase das tabelas novas (evita o erro "schema cache").
+notify pgrst, 'reload schema';
