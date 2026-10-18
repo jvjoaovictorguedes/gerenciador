@@ -8,7 +8,8 @@ import Financeiro from './components/Financeiro';
 import PneuModal from './components/PneuModal';
 import Login from './components/Login';
 import { Confirmacao } from './components/Modal';
-import { armazenamentoLocal, iniciarArmazenamento, supabase } from './lib/armazenamento';
+import ConectarSupabase from './components/ConectarSupabase';
+import { armazenamentoLocal, dadosProprios, iniciarArmazenamento, supabase } from './lib/armazenamento';
 import { brl, dataBR, hoje, medida, mesDe, nomeMes, rotulo } from './lib/pneus';
 
 const abaDoEndereco = () => {
@@ -27,6 +28,10 @@ function Gerenciador({ ambiente, email }) {
   const [pneuModal, setPneuModal] = useState(null); // null fechado · {} novo · {pneu} edição
   const [predefinido, setPredefinido] = useState(null);
   const [nomes, setNomes] = useState({});
+  const [conectar, setConectar] = useState(false);
+  const [locais, setLocais] = useState(() => (modo === 'supabase' ? dadosProprios() : null));
+  // O botão de conectar só faz sentido fora do Claude (lá o site já tem banco próprio).
+  const podeConectar = modo === 'demo' && !window.claude;
 
   // Com dados ao vivo (site no Claude) as telas se atualizam sozinhas;
   // nos outros modos, recarrega depois de cada alteração.
@@ -119,7 +124,8 @@ function Gerenciador({ ambiente, email }) {
       <main className="wrap">
         {modo === 'demo' && (
           <div className="aviso">
-            <b>Modo demonstração.</b> Os dados ficam só neste navegador. Para guardar no banco de dados online, siga o passo a passo do arquivo <code>COMO-USAR.md</code>.
+            <b>Modo demonstração.</b> Você pode cadastrar tudo, mas os dados ficam só neste navegador: não aparecem em outro aparelho e somem se o histórico do navegador for limpo.
+            {podeConectar && <button className="btn btn-sm btn-primary" onClick={() => setConectar(true)}>Conectar ao Supabase</button>}
           </div>
         )}
         {modo === 'claude' && usuario && !usuario.podeEscrever && (
@@ -134,6 +140,23 @@ function Gerenciador({ ambiente, email }) {
               rotulo: 'Apagar exemplos',
               acao: () => executar(() => api.apagarExemplos(), 'Dados de exemplo apagados'),
             })}>Apagar dados de exemplo</button>
+          </div>
+        )}
+        {locais && (
+          <div className="aviso">
+            <b>Este navegador tem {locais.tires.length} pneu(s), {locais.movs.length} movimentação(ões) e {locais.desp.length} despesa(s) cadastrados no modo demonstração.</b> Quer enviar tudo para o banco?
+            <button className="btn btn-sm btn-primary" onClick={() => setConfirmar({
+              titulo: 'Enviar para o banco',
+              texto: 'Enviar para o Supabase os pneus, as movimentações e as despesas cadastrados neste navegador? Depois do envio, a cópia do navegador é apagada.',
+              rotulo: 'Enviar',
+              acao: () => executar(async () => {
+                const r = await api.importar(locais);
+                await armazenamentoLocal.apagarTudo();
+                setLocais(null);
+                return r;
+              }, (r) => `Enviado: ${r.pneus} pneu(s), ${r.movimentacoes} movimentação(ões) e ${r.despesas} despesa(s)`),
+            })}>Enviar para o banco</button>
+            <button className="btn btn-sm" onClick={() => setLocais(null)}>Agora não</button>
           </div>
         )}
         {erro && <div className="aviso erro"><b>Falha ao atualizar.</b> {erro}</div>}
@@ -215,6 +238,8 @@ function Gerenciador({ ambiente, email }) {
           }}
         />
       )}
+
+      {conectar && <ConectarSupabase onFechar={() => setConectar(false)} />}
 
       {confirmar && (
         <Confirmacao

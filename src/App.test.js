@@ -68,3 +68,21 @@ test('carregar devolve cópias: a tela não vê o estoque mudar antes de recarre
   expect(t.qtd).toBe(30);
   expect((await armazenamentoLocal.carregar()).tires[0].qtd).toBe(26);
 });
+
+test('conexão pelo site recusa a chave secreta e endereço errado', async () => {
+  const { testarSupabase } = require('./lib/armazenamento');
+  await expect(testarSupabase('abcdefgh.supabase.co', 'x'.repeat(40))).rejects.toThrow('Project URL');
+  await expect(testarSupabase('https://abcdefgh.supabase.co', 'sb_secret_' + 'x'.repeat(30))).rejects.toThrow('chave secreta');
+  const servico = 'e30.' + btoa(JSON.stringify({ role: 'service_role' })) + '.x';
+  await expect(testarSupabase('https://abcdefgh.supabase.co', servico + 'x'.repeat(30))).rejects.toThrow('chave secreta');
+});
+
+test('dados próprios do modo demonstração: só o que a pessoa cadastrou', async () => {
+  const { dadosProprios } = require('./lib/armazenamento');
+  expect(dadosProprios()).toBeNull(); // loja vazia
+  await armazenamentoLocal.restaurarExemplo();
+  expect(dadosProprios()).toBeNull(); // só exemplo
+  await armazenamentoLocal.apagarTudo();
+  await cadastrar(5);
+  expect(dadosProprios().tires).toHaveLength(1);
+});

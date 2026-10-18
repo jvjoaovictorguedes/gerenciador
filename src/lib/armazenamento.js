@@ -1,15 +1,81 @@
-// Duas formas de guardar os dados, com a mesma interface:
-// - Supabase, quando REACT_APP_SUPABASE_URL e REACT_APP_SUPABASE_ANON_KEY estão configurados;
-// - navegador (localStorage), como modo demonstração, quando não estão.
+// Formas de guardar os dados, com a mesma interface:
+// - Supabase, configurado pelas variáveis REACT_APP_SUPABASE_URL e REACT_APP_SUPABASE_ANON_KEY
+//   ou, na falta delas, pelo botão "Conectar ao Supabase" do próprio site (fica salvo no navegador);
+// - banco do site publicado no Claude (armazenamentoClaude.js);
+// - navegador (localStorage), como modo demonstração.
 import { createClient } from '@supabase/supabase-js';
 import { dadosDeExemplo, uid } from './exemplo';
 import { medida, rotulo, hoje } from './pneus';
 import { criarArmazenamentoClaude } from './armazenamentoClaude';
 
-const url = process.env.REACT_APP_SUPABASE_URL;
-const chave = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const CHAVE_CONFIG = 'gerenciador-supabase';
 
-export const supabase = url && chave ? createClient(url, chave) : null;
+function configSalva() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CHAVE_CONFIG) || 'null');
+    if (c && c.url && c.chave) return { url: c.url, chave: c.chave, origem: 'navegador' };
+  } catch (e) {
+    // sem acesso ao armazenamento: segue sem configuração salva
+  }
+  return null;
+}
+
+export const configSupabase =
+  process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY
+    ? { url: process.env.REACT_APP_SUPABASE_URL, chave: process.env.REACT_APP_SUPABASE_ANON_KEY, origem: 'ambiente' }
+    : configSalva();
+
+export const supabase = configSupabase ? createClient(configSupabase.url, configSupabase.chave) : null;
+
+// Confere endereço, chave e tabelas antes de salvar a conexão feita pelo site.
+export async function testarSupabase(urlDigitada, chaveDigitada) {
+  const url = String(urlDigitada).trim().replace(/\/+$/, '');
+  const chave = String(chaveDigitada).trim();
+  if (!/^https:\/\/[^/\s]+$/.test(url)) throw new Error('A Project URL deve ser parecida com https://abcdefgh.supabase.co');
+  if (chave.startsWith('sb_secret_') || papelDaChave(chave) === 'service_role') {
+    throw new Error('Essa é a chave secreta. Use a chave anon public (ou publishable), que pode ficar no site.');
+  }
+  if (chave.length < 30) throw new Error('Cole a chave anon public completa.');
+  let r;
+  try {
+    r = await createClient(url, chave, { auth: { persistSession: false } }).from('pneus').select('id').limit(1);
+  } catch (e) {
+    throw new Error('Não foi possível acessar esse endereço. Confira a Project URL.');
+  }
+  if (r.error) {
+    const texto = `${r.error.message || ''} ${r.error.code || ''} ${r.error.hint || ''}`;
+    if (/permission denied/i.test(texto)) return { url, chave }; // tabelas existem; os dados aparecem depois do login
+    if (/PGRST205|42P01|does not exist|schema cache/i.test(texto)) throw new Error('Conectou, mas as tabelas não existem. Rode o arquivo supabase/schema.sql no SQL Editor do Supabase.');
+    if (/api ?key|jwt|401|unauthorized/i.test(texto)) throw new Error('Chave inválida. Copie de novo a chave anon public do projeto.');
+    if (/fetch|network/i.test(texto)) throw new Error('Não foi possível acessar esse endereço. Confira a Project URL.');
+    throw new Error(r.error.message || 'Não foi possível conectar.');
+  }
+  return { url, chave };
+}
+
+function papelDaChave(chave) {
+  try {
+    return JSON.parse(atob(chave.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function salvarConexaoSupabase({ url, chave }) {
+  try {
+    localStorage.setItem(CHAVE_CONFIG, JSON.stringify({ url, chave }));
+  } catch (e) {
+    throw new Error('Este navegador não deixou salvar a conexão. Saia da janela anônima e tente de novo.');
+  }
+}
+
+export function esquecerConexaoSupabase() {
+  try {
+    localStorage.removeItem(CHAVE_CONFIG);
+  } catch (e) {
+    // nada salvo para apagar
+  }
+}
 
 const CAMPOS_PNEU = ['marca', 'modelo', 'largura', 'perfil', 'aro', 'carga', 'vel', 'min', 'custo', 'preco'];
 
@@ -44,6 +110,17 @@ function gravarLocal(s) {
   } catch (e) {
     // sem acesso ao armazenamento: os dados valem só até fechar a página
   }
+}
+
+// O que a pessoa cadastrou no modo demonstração (não os dados de exemplo), para enviar ao banco.
+export function dadosProprios() {
+  try {
+    const s = JSON.parse(localStorage.getItem(CHAVE_LOCAL) || 'null');
+    if (s && !s.exemplo && Array.isArray(s.tires) && s.tires.length) return s;
+  } catch (e) {
+    // nada cadastrado neste navegador
+  }
+  return null;
 }
 
 let memoria = null;
@@ -180,6 +257,24 @@ const armazenamentoSupabase = {
   async excluirDespesa(id) {
     const { error } = await supabase.from('despesas').delete().eq('id', id);
     falhou(error);
+  },
+  // Envia ao banco o que foi cadastrado no modo demonstração.
+  async importar({ tires, movs, desp }) {
+    const novoId = {};
+    const idDe = (antigo) => (antigo ? (novoId[antigo] = novoId[antigo] || crypto.randomUUID()) : null);
+    const pneus = tires.map((t) => ({ id: idDe(t.id), ...Object.fromEntries(CAMPOS_PNEU.map((c) => [c, t[c]])), qtd: Math.max(0, t.qtd || 0) }));
+    const vivos = new Set(tires.map((t) => t.id));
+    const movimentacoes = movs.map((m) => ({
+      id: idDe(m.id), tipo: m.tipo, pneu_id: vivos.has(m.pneu_id) ? idDe(m.pneu_id) : null, rotulo: m.rotulo, qtd: m.qtd, valor: m.valor, data: m.data, obs: m.obs || '',
+    }));
+    const movIds = new Set(movs.map((m) => m.id));
+    const despesas = desp.filter((d) => d.valor > 0).map((d) => ({
+      id: idDe(d.id), data: d.data, descricao: d.descricao, categoria: d.categoria, valor: d.valor, pago: !!d.pago, mov_id: movIds.has(d.mov_id) ? idDe(d.mov_id) : null,
+    }));
+    if (pneus.length) falhou((await supabase.from('pneus').insert(pneus)).error);
+    if (movimentacoes.length) falhou((await supabase.from('movimentacoes').insert(movimentacoes)).error);
+    if (despesas.length) falhou((await supabase.from('despesas').insert(despesas)).error);
+    return { pneus: pneus.length, movimentacoes: movimentacoes.length, despesas: despesas.length };
   },
 };
 

@@ -43,6 +43,10 @@ REACT_APP_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 REACT_APP_SUPABASE_ANON_KEY=cole-aqui-a-chave-anon-public
 ```
 
+**Sem mexer nas variáveis:** com o site aberto em modo demonstração, clique em **Conectar ao Supabase** no aviso amarelo e cole esses dois valores. O site testa a conexão antes de salvar. Essa conexão vale só para aquele navegador; em outro aparelho, conecte de novo ou use as variáveis.
+
+**Dados do modo demonstração:** se você cadastrou pneus no modo demonstração, depois do primeiro login o site oferece **Enviar para o banco**, que copia tudo para o Supabase.
+
 A chave *anon public* pode ficar no app sem problema. Os dados só aparecem para quem faz login, e quem garante isso são as regras de segurança criadas no passo 1. **Nunca** use a chave `service_role` no app.
 
 ## 4. Rodar ou hospedar
@@ -61,6 +65,11 @@ npm start          # abre em http://localhost:3000
 3. Em *Build command*, coloque `npm run build`. Em *Build output directory*, coloque `build`.
 4. Em **Environment variables**, adicione `REACT_APP_SUPABASE_URL` e `REACT_APP_SUPABASE_ANON_KEY` com os valores do passo 3.
 5. Clique em **Save and Deploy**. O app ganha um endereço do tipo `gerenciador.pages.dev`. Depois você pode ligar um domínio próprio.
+
+> **O site abriu em modo demonstração mesmo com as variáveis cadastradas?** Confira três coisas:
+> - **Os nomes estão exatos**, com o prefixo `REACT_APP_`.
+> - **Você publicou de novo depois de cadastrar as variáveis.** Elas entram no site na hora da publicação.
+> - **As variáveis valem para o ambiente que você está abrindo.** Na Vercel, um branch que não é o principal vira *Preview*, e as variáveis marcadas só como *Production* não chegam nele.
 
 > O plano gratuito da Vercel (Hobby) não permite uso comercial. Por isso a recomendação aqui é a Cloudflare Pages.
 

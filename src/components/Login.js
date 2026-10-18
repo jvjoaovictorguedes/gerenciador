@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Logo } from './Topo';
-import { supabase } from '../lib/armazenamento';
+import { configSupabase, esquecerConexaoSupabase, supabase } from '../lib/armazenamento';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -34,7 +34,12 @@ export default function Login() {
           </label>
           <span className="form-msg" role="alert">{msg}</span>
           <button className="btn btn-primary" type="submit" disabled={entrando}>{entrando ? 'Entrando…' : 'Entrar'}</button>
-          <p className="hint" style={{ margin: 0 }}>Os acessos são criados pelo responsável da loja no painel do Supabase.</p>
+          <p className="hint" style={{ margin: 0 }}>Os acessos são criados pelo responsável da loja no painel do Supabase, em Authentication › Users.</p>
+          {configSupabase?.origem === 'navegador' && (
+            <button type="button" className="btn-link" style={{ alignSelf: 'flex-start' }} onClick={() => { esquecerConexaoSupabase(); window.location.reload(); }}>
+              Desconectar este banco
+            </button>
+          )}
         </form>
       </div>
     </div>
